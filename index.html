@@ -1,0 +1,150 @@
+
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R2</title>
+    <style>
+        :root { --bg-dark: #1e1e1e; --accent: #0078d7; --text: #e0e0e0; --border: #333; }
+        body { margin: 0; display: flex; height: 100vh; background: #121212; color: var(--text); font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+
+        #sidebar { width: 0; background: var(--bg-dark); border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: width 0.3s; overflow: hidden; }
+        #sidebar.open { width: 320px; }
+        .sidebar-header { padding: 20px; font-weight: bold; border-bottom: 1px solid var(--border); min-width: 320px; }
+        .sidebar-content { flex: 1; overflow-y: auto; min-width: 320px; }
+
+        .toc-item { border-bottom: 1px solid var(--border); }
+        .toc-header { padding: 12px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; transition: background 0.2s; }
+        .toc-header:hover { background: #2a2a2a; }
+        .toc-sub { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; background: #121212; }
+        .toc-item.open .toc-sub { max-height: 1200px; }
+        .sub-item { padding: 8px 15px 8px 30px; cursor: pointer; font-size: 13px; color: #bbb; border-left: 3px solid transparent; }
+        .sub-item:hover { color: white; border-left: 3px solid var(--accent); background: #1e1e1e; }
+
+        #main { flex: 1; display: flex; flex-direction: column; background: #525659; min-width: 0; }
+        #toolbar { height: 50px; background: var(--bg-dark); display: flex; align-items: center; padding: 0 10px; gap: 10px; border-bottom: 1px solid var(--border); z-index: 100; }
+
+        button { background: #444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #666; }
+        input[type="number"] { background: #333; color: white; border: 1px solid #555; padding: 5px; width: 60px; border-radius: 4px; text-align: center; }
+
+        #viewport { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 20px; }
+        #book-container { display: flex; transition: transform 0.1s; background: white; box-shadow: 0 0 30px rgba(0,0,0,0.5); transform-origin: top center; }
+        .page-img { height: 90vh; border-right: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <div class="sidebar-header">Innholdsfortegnelse</div>
+    <div id="toc-content" class="sidebar-content"></div>
+</div>
+
+<div id="main">
+    <div id="toolbar">
+        <button onclick="toggleSidebar()">☰</button>
+        <button onclick="nav(-1)">❮</button>
+        <div style="display: flex; align-items: center; gap: 5px;">
+            <span>Side</span>
+            <input type="number" id="page-input" min="1" max="498" onkeydown="if(event.key==='Enter') jumpToPage()">
+            <span id="page-total">av 498</span>
+        </div>
+        <button onclick="nav(1)">❯</button>
+        <div style="flex:1"></div>
+        <button onclick="zoom(-0.1)">-</button>
+        <button onclick="resetZ()">100%</button>
+        <button onclick="zoom(0.1)">+</button>
+    </div>
+    <div id="viewport">
+        <div id="book-container"></div>
+    </div>
+</div>
+
+<script>
+    const tocData = [{"tittel": "Forside", "side": 1, "under": []}, {"tittel": "Innhold", "side": 4, "under": []}, {"tittel": "1 Trigonometriske likninger", "side": 8, "under": [{"tittel": "1.1 Enhetssirkelen", "side": 10}, {"tittel": "1.2 Grader og radianer", "side": 20}, {"tittel": "1.3 Likninger med sinus og cosinus", "side": 27}, {"tittel": "1.4 Likninger med tangens og sammensatte vinkler", "side": 34}, {"tittel": "1.5 Enhetsformelen", "side": 40}, {"tittel": "1.6 Sum og differanse av vinkler", "side": 45}, {"tittel": "1.7 Sammensatte trigonometriske likninger", "side": 51}]}, {"tittel": "2 Trigonometriske funksjoner", "side": 72, "under": [{"tittel": "2.1 Grafen til sin x og cos x", "side": 74}, {"tittel": "2.2 Forskyvning og strekking", "side": 81}, {"tittel": "2.3 Harmoniske svingninger", "side": 87}, {"tittel": "2.4 Funksjonen a sin cx + b cos cx", "side": 99}, {"tittel": "2.5 Derivasjon av trigonometriske funksjoner", "side": 105}, {"tittel": "2.6 Dr\u00f8fting av sammensatte trigonometriske funksjoner", "side": 110}]}, {"tittel": "3 F\u00f8lger og rekker", "side": 132, "under": [{"tittel": "3.1 Tallf\u00f8lger", "side": 134}, {"tittel": "3.2 Rekker", "side": 145}, {"tittel": "3.3 Anvendelser av geometriske rekker", "side": 154}, {"tittel": "3.4 Uendelige geometriske rekker", "side": 166}, {"tittel": "3.5 Matematiske bevis", "side": 173}, {"tittel": "3.6 Tallm\u00f8nstre", "side": 184}]}, {"tittel": "4 Integrasjon", "side": 204, "under": [{"tittel": "4.1 Trapesmetoden og areal under grafer", "side": 206}, {"tittel": "4.2 Bestemt integral", "side": 219}, {"tittel": "4.3 Ubestemt integral", "side": 225}, {"tittel": "4.4 Arealberegninger ved integrasjon", "side": 233}, {"tittel": "4.5 Delvis integrasjon", "side": 241}, {"tittel": "4.6 Integrasjon ved variabelskifte", "side": 246}, {"tittel": "4.7 Integrasjon ved delbr\u00f8koppspalting", "side": 251}]}, {"tittel": "5 Matematiske modeller og anvendelse av integrasjon", "side": 276, "under": [{"tittel": "5.1 Integrasjon og samlet mengde", "side": 278}, {"tittel": "5.2 Volum av omdreiningslegemer", "side": 287}, {"tittel": "5.3 Modellering og regresjon", "side": 296}, {"tittel": "5.4 Modellering med Eulers metode", "side": 309}]}, {"tittel": "6 Vektorer og romgeometri", "side": 344, "under": [{"tittel": "6.1 Punkter i rommet", "side": 346}, {"tittel": "6.2 Vektorer i rommet", "side": 355}, {"tittel": "6.3 Skalarprodukt", "side": 365}, {"tittel": "6.4 Vektorprodukt", "side": 371}, {"tittel": "6.5 Areal og volum", "side": 378}, {"tittel": "6.6 Plan", "side": 386}, {"tittel": "6.7 Kuleflater", "side": 397}, {"tittel": "6.8 Kurver i planet", "side": 402}, {"tittel": "6.9 Linjer og kurver i rommet", "side": 408}, {"tittel": "6.10 Vektorfunksjoner", "side": 419}]}, {"tittel": "Python p\u00e5 1\u20132\u20133", "side": 446, "under": []}, {"tittel": "GeoGebra p\u00e5 1\u20132\u20133", "side": 451, "under": []}, {"tittel": "Fasit", "side": 455, "under": []}, {"tittel": "Stikkord", "side": 493, "under": []}, {"tittel": "L\u00e6replan", "side": 495, "under": []}];
+    const fileList = ["page0001.svgz", "page0002.svgz", "page0003.svgz", "page0004.svgz", "page0005.svgz", "page0006.svgz", "page0007.svgz", "page0008.svgz", "page0009.svgz", "page0010.svgz", "page0011.svgz", "page0012.svgz", "page0013.svgz", "page0014.svgz", "page0015.svgz", "page0016.svgz", "page0017.svgz", "page0018.svgz", "page0019.svgz", "page0020.svgz", "page0021.svgz", "page0022.svgz", "page0023.svgz", "page0024.svgz", "page0025.svgz", "page0026.svgz", "page0027.svgz", "page0028.svgz", "page0029.svgz", "page0030.svgz", "page0031.svgz", "page0032.svgz", "page0033.svgz", "page0034.svgz", "page0035.svgz", "page0036.svgz", "page0037.svgz", "page0038.svgz", "page0039.svgz", "page0040.svgz", "page0041.svgz", "page0042.svgz", "page0043.svgz", "page0044.svgz", "page0045.svgz", "page0046.svgz", "page0047.svgz", "page0048.svgz", "page0049.svgz", "page0050.svgz", "page0051.svgz", "page0052.svgz", "page0053.svgz", "page0054.svgz", "page0055.svgz", "page0056.svgz", "page0057.svgz", "page0058.svgz", "page0059.svgz", "page0060.svgz", "page0061.svgz", "page0062.svgz", "page0063.svgz", "page0064.svgz", "page0065.svgz", "page0066.svgz", "page0067.svgz", "page0068.svgz", "page0069.svgz", "page0070.svgz", "page0071.svgz", "page0072.svgz", "page0073.svgz", "page0074.svgz", "page0075.svgz", "page0076.svgz", "page0077.svgz", "page0078.svgz", "page0079.svgz", "page0080.svgz", "page0081.svgz", "page0082.svgz", "page0083.svgz", "page0084.svgz", "page0085.svgz", "page0086.svgz", "page0087.svgz", "page0088.svgz", "page0089.svgz", "page0090.svgz", "page0091.svgz", "page0092.svgz", "page0093.svgz", "page0094.svgz", "page0095.svgz", "page0096.svgz", "page0097.svgz", "page0098.svgz", "page0099.svgz", "page0100.svgz", "page0101.svgz", "page0102.svgz", "page0103.svgz", "page0104.svgz", "page0105.svgz", "page0106.svgz", "page0107.svgz", "page0108.svgz", "page0109.svgz", "page0110.svgz", "page0111.svgz", "page0112.svgz", "page0113.svgz", "page0114.svgz", "page0115.svgz", "page0116.svgz", "page0117.svgz", "page0118.svgz", "page0119.svgz", "page0120.svgz", "page0121.svgz", "page0122.svgz", "page0123.svgz", "page0124.svgz", "page0125.svgz", "page0126.svgz", "page0127.svgz", "page0128.svgz", "page0129.svgz", "page0130.svgz", "page0131.svgz", "page0132.svgz", "page0133.svgz", "page0134.svgz", "page0135.svgz", "page0136.svgz", "page0137.svgz", "page0138.svgz", "page0139.svgz", "page0140.svgz", "page0141.svgz", "page0142.svgz", "page0143.svgz", "page0144.svgz", "page0145.svgz", "page0146.svgz", "page0147.svgz", "page0148.svgz", "page0149.svgz", "page0150.svgz", "page0151.svgz", "page0152.svgz", "page0153.svgz", "page0154.svgz", "page0155.svgz", "page0156.svgz", "page0157.svgz", "page0158.svgz", "page0159.svgz", "page0160.svgz", "page0161.svgz", "page0162.svgz", "page0163.svgz", "page0164.svgz", "page0165.svgz", "page0166.svgz", "page0167.svgz", "page0168.svgz", "page0169.svgz", "page0170.svgz", "page0171.svgz", "page0172.svgz", "page0173.svgz", "page0174.svgz", "page0175.svgz", "page0176.svgz", "page0177.svgz", "page0178.svgz", "page0179.svgz", "page0180.svgz", "page0181.svgz", "page0182.svgz", "page0183.svgz", "page0184.svgz", "page0185.svgz", "page0186.svgz", "page0187.svgz", "page0188.svgz", "page0189.svgz", "page0190.svgz", "page0191.svgz", "page0192.svgz", "page0193.svgz", "page0194.svgz", "page0195.svgz", "page0196.svgz", "page0197.svgz", "page0198.svgz", "page0199.svgz", "page0200.svgz", "page0201.svgz", "page0202.svgz", "page0203.svgz", "page0204.svgz", "page0205.svgz", "page0206.svgz", "page0207.svgz", "page0208.svgz", "page0209.svgz", "page0210.svgz", "page0211.svgz", "page0212.svgz", "page0213.svgz", "page0214.svgz", "page0215.svgz", "page0216.svgz", "page0217.svgz", "page0218.svgz", "page0219.svgz", "page0220.svgz", "page0221.svgz", "page0222.svgz", "page0223.svgz", "page0224.svgz", "page0225.svgz", "page0226.svgz", "page0227.svgz", "page0228.svgz", "page0229.svgz", "page0230.svgz", "page0231.svgz", "page0232.svgz", "page0233.svgz", "page0234.svgz", "page0235.svgz", "page0236.svgz", "page0237.svgz", "page0238.svgz", "page0239.svgz", "page0240.svgz", "page0241.svgz", "page0242.svgz", "page0243.svgz", "page0244.svgz", "page0245.svgz", "page0246.svgz", "page0247.svgz", "page0248.svgz", "page0249.svgz", "page0250.svgz", "page0251.svgz", "page0252.svgz", "page0253.svgz", "page0254.svgz", "page0255.svgz", "page0256.svgz", "page0257.svgz", "page0258.svgz", "page0259.svgz", "page0260.svgz", "page0261.svgz", "page0262.svgz", "page0263.svgz", "page0264.svgz", "page0265.svgz", "page0266.svgz", "page0267.svgz", "page0268.svgz", "page0269.svgz", "page0270.svgz", "page0271.svgz", "page0272.svgz", "page0273.svgz", "page0274.svgz", "page0275.svgz", "page0276.svgz", "page0277.svgz", "page0278.svgz", "page0279.svgz", "page0280.svgz", "page0281.svgz", "page0282.svgz", "page0283.svgz", "page0284.svgz", "page0285.svgz", "page0286.svgz", "page0287.svgz", "page0288.svgz", "page0289.svgz", "page0290.svgz", "page0291.svgz", "page0292.svgz", "page0293.svgz", "page0294.svgz", "page0295.svgz", "page0296.svgz", "page0297.svgz", "page0298.svgz", "page0299.svgz", "page0300.svgz", "page0301.svgz", "page0302.svgz", "page0303.svgz", "page0304.svgz", "page0305.svgz", "page0306.svgz", "page0307.svgz", "page0308.svgz", "page0309.svgz", "page0310.svgz", "page0311.svgz", "page0312.svgz", "page0313.svgz", "page0314.svgz", "page0315.svgz", "page0316.svgz", "page0317.svgz", "page0318.svgz", "page0319.svgz", "page0320.svgz", "page0321.svgz", "page0322.svgz", "page0323.svgz", "page0324.svgz", "page0325.svgz", "page0326.svgz", "page0327.svgz", "page0328.svgz", "page0329.svgz", "page0330.svgz", "page0331.svgz", "page0332.svgz", "page0333.svgz", "page0334.svgz", "page0335.svgz", "page0336.svgz", "page0337.svgz", "page0338.svgz", "page0339.svgz", "page0340.svgz", "page0341.svgz", "page0342.svgz", "page0343.svgz", "page0344.svgz", "page0345.svgz", "page0346.svgz", "page0347.svgz", "page0348.svgz", "page0349.svgz", "page0350.svgz", "page0351.svgz", "page0352.svgz", "page0353.svgz", "page0354.svgz", "page0355.svgz", "page0356.svgz", "page0357.svgz", "page0358.svgz", "page0359.svgz", "page0360.svgz", "page0361.svgz", "page0362.svgz", "page0363.svgz", "page0364.svgz", "page0365.svgz", "page0366.svgz", "page0367.svgz", "page0368.svgz", "page0369.svgz", "page0370.svgz", "page0371.svgz", "page0372.svgz", "page0373.svgz", "page0374.svgz", "page0375.svgz", "page0376.svgz", "page0377.svgz", "page0378.svgz", "page0379.svgz", "page0380.svgz", "page0381.svgz", "page0382.svgz", "page0383.svgz", "page0384.svgz", "page0385.svgz", "page0386.svgz", "page0387.svgz", "page0388.svgz", "page0389.svgz", "page0390.svgz", "page0391.svgz", "page0392.svgz", "page0393.svgz", "page0394.svgz", "page0395.svgz", "page0396.svgz", "page0397.svgz", "page0398.svgz", "page0399.svgz", "page0400.svgz", "page0401.svgz", "page0402.svgz", "page0403.svgz", "page0404.svgz", "page0405.svgz", "page0406.svgz", "page0407.svgz", "page0408.svgz", "page0409.svgz", "page0410.svgz", "page0411.svgz", "page0412.svgz", "page0413.svgz", "page0414.svgz", "page0415.svgz", "page0416.svgz", "page0417.svgz", "page0418.svgz", "page0419.svgz", "page0420.svgz", "page0421.svgz", "page0422.svgz", "page0423.svgz", "page0424.svgz", "page0425.svgz", "page0426.svgz", "page0427.svgz", "page0428.svgz", "page0429.svgz", "page0430.svgz", "page0431.svgz", "page0432.svgz", "page0433.svgz", "page0434.svgz", "page0435.svgz", "page0436.svgz", "page0437.svgz", "page0438.svgz", "page0439.svgz", "page0440.svgz", "page0441.svgz", "page0442.svgz", "page0443.svgz", "page0444.svgz", "page0445.svgz", "page0446.svgz", "page0447.svgz", "page0448.svgz", "page0449.svgz", "page0450.svgz", "page0451.svgz", "page0452.svgz", "page0453.svgz", "page0454.svgz", "page0455.svgz", "page0456.svgz", "page0457.svgz", "page0458.svgz", "page0459.svgz", "page0460.svgz", "page0461.svgz", "page0462.svgz", "page0463.svgz", "page0464.svgz", "page0465.svgz", "page0466.svgz", "page0467.svgz", "page0468.svgz", "page0469.svgz", "page0470.svgz", "page0471.svgz", "page0472.svgz", "page0473.svgz", "page0474.svgz", "page0475.svgz", "page0476.svgz", "page0477.svgz", "page0478.svgz", "page0479.svgz", "page0480.svgz", "page0481.svgz", "page0482.svgz", "page0483.svgz", "page0484.svgz", "page0485.svgz", "page0486.svgz", "page0487.svgz", "page0488.svgz", "page0489.svgz", "page0490.svgz", "page0491.svgz", "page0492.svgz", "page0493.svgz", "page0494.svgz", "page0495.svgz", "page0496.svgz", "page0497.svgz", "page0498.svgz"];
+    const MAX_P = 498;
+    let viewIdx = 0;
+    let currZoom = 1.0;
+
+    function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+
+    function renderTOC() {
+        const con = document.getElementById('toc-content');
+        let html = '';
+        tocData.forEach((kap, idx) => {
+            const hasSub = kap.under && kap.under.length > 0;
+            const action = hasSub ? `toggleKap(${idx})` : `goToPage(${kap.side})`;
+            html += `<div class="toc-item" id="kap-${idx}">
+                <div class="toc-header" onclick="${action}"><span>${kap.tittel}</span></div>`;
+            if(hasSub) {
+                html += `<div class="toc-sub">`;
+                kap.under.forEach(sub => {
+                    html += `<div class="sub-item" onclick="goToPage(${sub.side})">${sub.tittel}</div>`;
+                });
+                html += `</div>`;
+            }
+            html += `</div>`;
+        });
+        con.innerHTML = html;
+    }
+
+    function toggleKap(idx) { document.getElementById('kap-' + idx).classList.toggle('open'); }
+
+    function renderPage() {
+        const con = document.getElementById('book-container');
+        con.innerHTML = '';
+
+        let leftP = (viewIdx === 0) ? 1 : viewIdx * 2;
+        let rightP = (viewIdx === 0) ? null : viewIdx * 2 + 1;
+
+        if (leftP <= MAX_P) addImg(fileList[leftP - 1]);
+        if (rightP && rightP <= MAX_P) addImg(fileList[rightP - 1]);
+
+        document.getElementById('page-input').value = leftP;
+        document.getElementById('viewport').scrollTop = 0;
+    }
+
+    function addImg(f) {
+        const img = document.createElement('img');
+        img.src = f;
+        img.className = 'page-img';
+        document.getElementById('book-container').appendChild(img);
+    }
+
+    function jumpToPage() {
+        let p = parseInt(document.getElementById('page-input').value);
+        if(isNaN(p) || p < 1) p = 1;
+        if(p > MAX_P) p = MAX_P;
+        goToPage(p);
+    }
+
+    function nav(dir) {
+        let nextView = viewIdx + dir;
+        let maxView = Math.floor(MAX_P / 2);
+        if (nextView >= 0 && nextView <= maxView) {
+            viewIdx = nextView;
+            renderPage();
+        }
+    }
+
+    function goToPage(p) {
+        if (p < 1) p = 1;
+        if (p > MAX_P) p = MAX_P;
+        viewIdx = (p === 1) ? 0 : Math.floor(p / 2);
+        renderPage();
+    }
+
+    function zoom(v) { currZoom += v; applyZ(); }
+    function resetZ() { currZoom = 1.0; applyZ(); }
+    function applyZ() { 
+        document.getElementById('book-container').style.transform = `scale(${currZoom})`; 
+    }
+
+    renderTOC();
+    renderPage();
+</script>
+</body>
+</html>
+    
